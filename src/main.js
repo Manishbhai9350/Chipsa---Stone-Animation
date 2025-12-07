@@ -47,8 +47,13 @@ Cube.rotation.set(-PI/4,PI/4,PI/2)
 
 scene.add(Cube)
 
+const clock = new Clock()
+let PrevTime = clock.getElapsedTime()
 
 function Animate(){
+  const CurrentTime = clock.getElapsedTime()
+  const DT = CurrentTime - PrevTime;
+  PrevTime = CurrentTime;
   Cube.rotation.z += .01
   renderer.render(scene,camera)
   requestAnimationFrame(Animate)
