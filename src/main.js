@@ -28,6 +28,7 @@ const material = new THREE.MeshNormalMaterial()
 const Manager = new THREE.LoadingManager();
 const Draco = new DRACOLoader(Manager)
 const GLB = new GLTFLoader(Manager)
+const TextureLoader = new THREE.TextureLoader(Manager)
 
 Draco.setDecoderPath('/draco/')
 Draco.setDecoderConfig({type: 'wasm'})
