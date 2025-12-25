@@ -68,13 +68,22 @@ const gui = new GUI();
 // GUI Setting
 const settings = {
   displaceStrength: {
-    value: 0.8,
+    value: 1,
   },
   lerpAlpha: {
-    value: .027,
+    value: .05,
+  },
+  rotationLerpAlpha: {
+    value: .05,
   },
   radius: {
     value: 3,
+  },
+  rx:{
+    value:.07
+  },
+  ry:{
+    value:.15
   },
 };
 
@@ -96,6 +105,24 @@ gui
   .max(4)
   .step(0.001)
   .name("Displacement Radius");
+gui
+  .add(settings.rotationLerpAlpha, "value")
+  .min(0)
+  .max(.6)
+  .step(0.001)
+  .name("Rotation Lerp Alpha");
+gui
+  .add(settings.rx, "value")
+  .min(0)
+  .max(.2)
+  .step(0.001)
+  .name("Rotation X");
+gui
+  .add(settings.ry, "value")
+  .min(0)
+  .max(.2)
+  .step(0.001)
+  .name("Rotation Y");
 
 
 // Raycaster Mouse
@@ -179,6 +206,10 @@ const raycaster = new Raycaster();
 const clock = new Clock();
 let PrevTime = clock.getElapsedTime();
 
+// Displacement Position Vector
+const displacedPos = new Vector3()
+const rotation = new Vector2()
+
 function Animate() {
   const CurrentTime = clock.getElapsedTime();
   const DT = CurrentTime - PrevTime;
@@ -212,13 +243,18 @@ function Animate() {
         (1 - dist / settings.radius.value) * settings.displaceStrength.value;
 
       // Displaced Position
-      const displacedPos = new Vector3()
-        .copy(worldPos)
+      displacedPos.copy(worldPos)
         .add(dir.multiplyScalar(strength));
+
 
       // apply displacement
       node.position.lerp(displacedPos, settings.lerpAlpha.value);
     });
+
+
+    stone.model.rotation.x += (rotation.x - stone.model.rotation.x)  * settings.rotationLerpAlpha.value
+    stone.model.rotation.y += (rotation.y - stone.model.rotation.y)  * settings.rotationLerpAlpha.value
+
   }
 
   renderer.render(scene, camera);
@@ -249,6 +285,10 @@ function mouseMove(e) {
   const ny = -((y / innerHeight) * 2 - 1);
 
   mouse.set(nx, ny);
+  rotation.set(
+    .3 + settings.rx.value * -ny, 
+    settings.ry.value * nx, 
+  )
 
   raycaster.setFromCamera(mouse, camera);
   const intersects = raycaster.intersectObject(RayPlane);
