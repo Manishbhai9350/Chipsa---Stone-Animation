@@ -2,10 +2,10 @@ import './style.css'
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader'
 import {DRACOLoader} from 'three/examples/jsm/loaders/DRACOLoader'
-import fragmentShader from './shaders/fragment.glsl'
-import vertexShader from './shaders/vertex.glsl'
 import { Clock } from 'three';
 import { GetSceneBounds } from './utils';
+import { AmbientLight } from 'three';
+import { DirectionalLight } from 'three';
 
 const {PI} = Math
 
@@ -22,9 +22,6 @@ const camera = new THREE.PerspectiveCamera(75,innerWidth/innerHeight,1,1000)
 camera.position.z = 5
 
 
-const material = new THREE.MeshNormalMaterial()
-
-
 const Manager = new THREE.LoadingManager();
 const Draco = new DRACOLoader(Manager)
 const GLB = new GLTFLoader(Manager)
@@ -34,18 +31,48 @@ Draco.setDecoderPath('/draco/')
 Draco.setDecoderConfig({type: 'wasm'})
 GLB.setDRACOLoader(Draco)
 
+let stone = {
+  model:null,
+  mixer:null,
+  animations:{
+    intro:null,
+    outro:null
+  },
+  intro:null,
+  outro:null,
+  loaded:false
+}
+GLB.load('/stone.glb',glb => {
+  stone.model = glb.scene;
+  stone.animations.intro = glb.animations[0]
+  stone.animations.outro = glb.animations[1]
+  stone.mixer = new THREE.AnimationMixer(stone)
+  stone.intro = stone.mixer.clipAction(stone.animations.intro)
+  stone.outro = stone.mixer.clipAction(stone.animations.outro)
+  stone.loaded = true;
+
+  // stone.intro.play()
+
+  console.log(stone.intro)
+
+  scene.add(stone.model)
+  
+})
+
+
+// ?? Lights
+
+const Amb = new AmbientLight(0xffffff,.5)
+const Dir = new DirectionalLight(0xffffff,1)
+
+Dir.position.set(0,0,3)
+
+scene.add(Amb,Dir)
+
 
 
 const { width:SceneWidth,height:SceneHeight } = GetSceneBounds(renderer,camera)
 
-
-const Cube = new THREE.Mesh(
-  new THREE.PlaneGeometry(SceneWidth,SceneHeight),
-  material
-)
-
-
-scene.add(Cube)
 
 const clock = new Clock()
 let PrevTime = clock.getElapsedTime()
@@ -54,6 +81,10 @@ function Animate(){
   const CurrentTime = clock.getElapsedTime()
   const DT = CurrentTime - PrevTime;
   PrevTime = CurrentTime;
+
+  if(stone.loaded) {
+  }
+
   renderer.render(scene,camera)
   requestAnimationFrame(Animate)
 }
