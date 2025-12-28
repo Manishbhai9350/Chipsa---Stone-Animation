@@ -124,6 +124,9 @@ const mouse = new Vector2(0, 0);
 const targetMouse = new Vector2(0, 0);
 const mouse3d = new Vector3(0, 0, 0);
 
+// If Animating any model
+let isAnimating = false;
+
 // Stone
 let stone = {
   isStoneActive: true,
@@ -137,32 +140,7 @@ let stone = {
   intro: null,
   outro: null,
   loaded: false,
-  currentPlaying: "outro",
-  toPlay:'intro',
   isMouse: false,
-  playIntro: (stone = {}) => {
-    // play once
-    stone.toPlay = 'intro'
-    stone.isStoneActive = true;
-    stone.intro.reset();
-    stone.intro.setLoop(THREE.LoopOnce, 1);
-    stone.intro.clampWhenFinished = true;
-    stone.intro.play();
-  },
-  playOutro: (stone = {}) => {
-    // play once
-    stone.toPlay = 'outro'
-    stone.isStoneActive = false;
-
-    // Only Play When model is ready ? Ready means the stones piece are all at the starting location
-    // Same for the Intro
-
-
-    // stone.outro.reset();
-    // stone.outro.setLoop(THREE.LoopOnce, 1);
-    // stone.outro.clampWhenFinished = true;
-    // stone.outro.play();
-  },
   positions: {},
 };
 GLB.load("/stone.glb", (glb) => {
@@ -175,16 +153,17 @@ GLB.load("/stone.glb", (glb) => {
   stone.outro = stone.mixer.clipAction(stone.animations.outro);
 
   stone.mixer.addEventListener("finished", (e) => {
-    if (e.action === stone.intro || e.action === stone.outro) {
-      console.log("Something Finished");
-      stone.currentPlaying = "none";
-      stone.toPlay = 'none'
+    if (e.action === stone.intro) {
+      isAnimating = false;
+    }
+    if (e.action === stone.outro) {
+      isAnimating = false;
+      stone.model.visible = false;
     }
   });
-
+  
   stone.loaded = true;
-
-  stone.playIntro(stone);
+  AnimateStoneIn();
 
   const colliderMaterial = new MeshBasicMaterial({
     color: 0xff0000,
@@ -242,15 +221,87 @@ const raycaster = new Raycaster();
 const displacedPos = new Vector3();
 const rotation = new Vector2();
 
-function updateAnimations(DT = 0){
-   if (stone.currentPlaying !== "none") {
-      stone.mixer.update(DT);
-    }
+function AnimateStoneOut() {
+  if (!stone.loaded || isAnimating) return;
+
+  const tl = gsap.timeline({
+    onComplete() {
+      console.log("Animating The Stone Out");
+      isAnimating = true;
+      stone.isStoneActive = false;
+      stone.outro.reset().setLoop(THREE.LoopOnce, 1);
+      stone.outro.play();
+    },
+  });
+
+  stone.model.traverse((node) => {
+    if (!node.isMesh && !node.userData.name) return;
+    const pos = stone.positions[node.userData.name];
+    if (!pos) return;
+    tl.to(
+      node.position,
+      {
+        x: pos.x,
+        y: pos.y,
+        z: pos.z,
+      },
+      "<"
+    );
+    tl.to(
+      node.rotation,
+      {
+        x: 0,
+        y: 0,
+        z: 0,
+      },
+      "<"
+    );
+  });
+}
+function AnimateStoneIn() {
+  if (!stone.loaded || isAnimating) return;
+
+  const tl = gsap.timeline({
+    onComplete() {
+      isAnimating = true;
+      stone.isStoneActive = true;
+      stone.model.visible = true;
+      stone.intro.reset().setLoop(THREE.LoopOnce, 1);
+      stone.intro.play();
+    },
+  });
+
+  stone.model.traverse((node) => {
+    if (!node.isMesh && !node.userData.name) return;
+    const pos = stone.positions[node.userData.name];
+    if (!pos) return;
+    tl.to(
+      node.position,
+      {
+        x: pos.x,
+        y: pos.y,
+        z: pos.z,
+      },
+      "<"
+    );
+    tl.to(
+      node.rotation,
+      {
+        x: 0,
+        y: 0,
+        z: 0,
+      },
+      "<"
+    );
+  });
 }
 
 // Animating The Stone
 function AnimateStone(DT = 0) {
   if (stone.loaded) {
+    stone.mixer.update(DT);
+
+    if(isAnimating) return;
 
     stone.model.traverse((node) => {
       if (!node.isMesh) return;
@@ -351,33 +402,32 @@ function mouseMove(e) {
       color: "white",
       borderColor: "white",
     });
-    gsap.to(MouseParaElm,{
-      opacity:1
-    })
+    gsap.to(MouseParaElm, {
+      opacity: 1,
+    });
     document.body.style.cursor = "pointer";
   } else {
     gsap.to(MouseElm, {
       color: "black",
       borderColor: "black",
     });
-    gsap.to(MouseParaElm,{
-      opacity:0
-    })
+    gsap.to(MouseParaElm, {
+      opacity: 0,
+    });
     stone.isMouse = false;
     document.body.style.cursor = "initial";
   }
 }
 
 function onClick() {
-  if (!stone.isMouse || !stone.loaded || stone.currentPlaying !== "none")
-    return;
+  if (!stone.isMouse || isAnimating) return;
 
   if (stone.isStoneActive) {
-    stone.playOutro(stone);
-    stone.isStoneActive = false;
+    console.log("Start Animating Out");
+    AnimateStoneOut();
   } else {
-    stone.playIntro(stone);
-    stone.isStoneActive = true;
+    console.log("Start Animating In");
+    AnimateStoneIn();
   }
 }
 
