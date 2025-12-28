@@ -136,6 +136,7 @@ let cloth = {
   mouse: new Vector3(),
   mouseUV: new Vector2(),
   originalScale: 0,
+  offserIntensity: 0,
 };
 
 // Stone Model Object
@@ -172,7 +173,6 @@ GLB.load("/stone.glb", (glb) => {
       stone.model.visible = false;
     }
   });
-
 
   const colliderMaterial = new MeshBasicMaterial({
     color: 0xff0000,
@@ -220,8 +220,39 @@ function loadCloth() {
     cloth.model.scale.setScalar(cloth.originalScale * 0);
     scene.add(cloth.model);
 
+   cloth.model.material.onBeforeCompile = (shader) => {
+
+  cloth.model.userData.uniforms = shader.uniforms;
+
+  cloth.model.userData.uniforms.uTime = { value: 0 };
+  cloth.model.userData.uniforms.uMouse = cloth.mouse;
+  cloth.model.userData.uniforms.uMouseUV = cloth.mouseUV;
+  cloth.model.userData.uniforms.uOffsetIntensity = cloth.offserIntensity;
+
+  shader.vertexShader = shader.vertexShader.replace(
+    "#include <common>",
+    `
+    #include <common>
+    uniform float uTime;
+    `
+  );
+
+  shader.vertexShader = shader.vertexShader.replace(
+    "#include <displacementmap_vertex>",
+    `
+    #include <displacementmap_vertex>
+
+    vec3 n = normalize(objectNormal);
+    float strength = 10.2;
+
+    transformed += n * abs(sin(uTime)) * strength;
+    `
+  );
+};
+
+
     modelsLoaded = true;
-    AnimateStoneIn();
+    AnimateStoneOut();
   });
 }
 
@@ -256,11 +287,12 @@ function AnimateStoneOut() {
   if (!modelsLoaded || isAnimating) return;
   isAnimating = true;
 
+  cloth.offserIntensity = 1;
+
   const tl = gsap.timeline({
     duration: 0.3,
     ease: "power2",
     onComplete() {
-      console.log("Animating The Stone Out");
       stone.isStoneActive = false;
       stone.outro.reset().setLoop(THREE.LoopOnce, 1);
       stone.outro.play();
@@ -303,6 +335,7 @@ function AnimateStoneOut() {
 function AnimateStoneIn() {
   if (!modelsLoaded || isAnimating) return;
   isAnimating = true;
+  cloth.offserIntensity = 0;
 
   gsap.to(cloth.model.scale, {
     x: 0,
@@ -310,7 +343,7 @@ function AnimateStoneIn() {
     z: 0,
     duration: 1,
     ease: "power4.in",
-    delay: 0
+    delay: 0,
   });
 
   const tl = gsap.timeline({
@@ -403,6 +436,10 @@ function Animate() {
   const DT = CurrentTime - PrevTime;
   PrevTime = CurrentTime;
 
+  if (modelsLoaded && cloth?.model?.userData?.uniforms) {
+    cloth.model.userData.uniforms.uTime.value += DT
+  }
+
   mouse.x += (targetMouse.x - mouse.x) * 0.15;
   mouse.y += (targetMouse.y - mouse.y) * 0.15;
 
@@ -457,7 +494,7 @@ function mouseMove(e) {
     });
     gsap.to(MouseParaElm, {
       opacity: 1,
-      duration:.2
+      duration: 0.2,
     });
     document.body.style.cursor = "pointer";
   } else {
@@ -467,11 +504,19 @@ function mouseMove(e) {
     });
     gsap.to(MouseParaElm, {
       opacity: 0,
-      duration:.2
-
+      duration: 0.2,
     });
     stone.isMouse = false;
     document.body.style.cursor = "initial";
+  }
+
+  // Cloth model is active checking intersects
+  if (!stone.isStoneActive) {
+    const intersect = raycaster.intersectObject(cloth.model, false)[0] || null;
+    if (intersect) {
+      cloth.mouse = intersect.point;
+      cloth.mouseUV = intersect.uv;
+    }
   }
 }
 
@@ -479,10 +524,8 @@ function onClick() {
   if (!stone.isMouse || isAnimating) return;
 
   if (stone.isStoneActive) {
-    console.log("Start Animating Out");
     AnimateStoneOut();
   } else {
-    console.log("Start Animating In");
     AnimateStoneIn();
   }
 }
