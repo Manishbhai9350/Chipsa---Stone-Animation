@@ -126,20 +126,31 @@ const mouse3d = new Vector3(0, 0, 0);
 
 // If Animating any model
 let isAnimating = false;
+let modelsLoaded = false;
 
-// Stone
+// Cloth Model Object
+
+let cloth = {
+  isclothActive: false,
+  model: null,
+  mouse: new Vector3(),
+  mouseUV: new Vector2(),
+  originalScale: 0,
+};
+
+// Stone Model Object
 let stone = {
   isStoneActive: true,
   model: null,
   collider: null,
   mixer: null,
+  position: new Vector3(-0.25, 0, 0),
   animations: {
     intro: null,
     outro: null,
   },
   intro: null,
   outro: null,
-  loaded: false,
   isMouse: false,
   positions: {},
 };
@@ -161,9 +172,7 @@ GLB.load("/stone.glb", (glb) => {
       stone.model.visible = false;
     }
   });
-  
-  stone.loaded = true;
-  AnimateStoneIn();
+
 
   const colliderMaterial = new MeshBasicMaterial({
     color: 0xff0000,
@@ -186,13 +195,35 @@ GLB.load("/stone.glb", (glb) => {
   });
 
   scene.add(stone.model, stone.collider);
-  stone.model.position.set(-0.25, 0, 0);
+  stone.model.visible = false;
+  stone.model.position.copy(stone.position);
   stone.model.scale.setScalar(0.9);
   stone.model.rotation.set(Math.PI / 10, 0, 0);
   stone.collider.position.copy(stone.model.position);
   stone.collider.scale.setScalar(0.9);
   stone.collider.rotation.set(Math.PI / 10, 0, 0);
+
+  loadCloth();
 });
+
+function loadCloth() {
+  GLB.load("/cloth.glb", (glb) => {
+    cloth.model = glb.scene.children[0];
+
+    // Calculating The Cloth Position with respect to Stone position
+    let worldPos = new Vector3();
+    stone.model.getWorldPosition(worldPos);
+    worldPos.copy(worldPos.sub(stone.model.position));
+
+    cloth.model.position.copy(worldPos);
+    cloth.originalScale = cloth.model.scale.x * 0.85;
+    cloth.model.scale.setScalar(cloth.originalScale * 0);
+    scene.add(cloth.model);
+
+    modelsLoaded = true;
+    AnimateStoneIn();
+  });
+}
 
 // Raycaster Plane;
 
@@ -222,15 +253,26 @@ const displacedPos = new Vector3();
 const rotation = new Vector2();
 
 function AnimateStoneOut() {
-  if (!stone.loaded || isAnimating) return;
+  if (!modelsLoaded || isAnimating) return;
+  isAnimating = true;
 
   const tl = gsap.timeline({
+    duration: 0.3,
+    ease: "power2",
     onComplete() {
       console.log("Animating The Stone Out");
-      isAnimating = true;
       stone.isStoneActive = false;
       stone.outro.reset().setLoop(THREE.LoopOnce, 1);
       stone.outro.play();
+
+      gsap.to(cloth.model.scale, {
+        x: cloth.originalScale,
+        y: cloth.originalScale,
+        z: cloth.originalScale,
+        duration: 1,
+        ease: "power4.out",
+        delay: 2,
+      });
     },
   });
 
@@ -259,11 +301,20 @@ function AnimateStoneOut() {
   });
 }
 function AnimateStoneIn() {
-  if (!stone.loaded || isAnimating) return;
+  if (!modelsLoaded || isAnimating) return;
+  isAnimating = true;
+
+  gsap.to(cloth.model.scale, {
+    x: 0,
+    y: 0,
+    z: 0,
+    duration: 1,
+    ease: "power4.in",
+    delay: 0
+  });
 
   const tl = gsap.timeline({
     onComplete() {
-      isAnimating = true;
       stone.isStoneActive = true;
       stone.model.visible = true;
       stone.intro.reset().setLoop(THREE.LoopOnce, 1);
@@ -298,10 +349,10 @@ function AnimateStoneIn() {
 
 // Animating The Stone
 function AnimateStone(DT = 0) {
-  if (stone.loaded) {
+  if (modelsLoaded) {
     stone.mixer.update(DT);
 
-    if(isAnimating) return;
+    if (isAnimating) return;
 
     stone.model.traverse((node) => {
       if (!node.isMesh) return;
@@ -338,6 +389,8 @@ function AnimateStone(DT = 0) {
 
     stone.collider.rotation.x = stone.model.rotation.x;
     stone.collider.rotation.y = stone.model.rotation.y;
+    cloth.model.rotation.x = stone.model.rotation.x;
+    cloth.model.rotation.y = stone.model.rotation.y;
   }
 }
 
@@ -378,7 +431,7 @@ function resize() {
 
 // Mouse Move ??
 function mouseMove(e) {
-  if (!stone.loaded) return;
+  if (!modelsLoaded) return;
   const x = e.clientX;
   const y = e.clientY;
 
@@ -404,6 +457,7 @@ function mouseMove(e) {
     });
     gsap.to(MouseParaElm, {
       opacity: 1,
+      duration:.2
     });
     document.body.style.cursor = "pointer";
   } else {
@@ -413,6 +467,8 @@ function mouseMove(e) {
     });
     gsap.to(MouseParaElm, {
       opacity: 0,
+      duration:.2
+
     });
     stone.isMouse = false;
     document.body.style.cursor = "initial";
