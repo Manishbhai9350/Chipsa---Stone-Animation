@@ -220,36 +220,53 @@ function loadCloth() {
     cloth.model.scale.setScalar(cloth.originalScale * 0);
     scene.add(cloth.model);
 
-   cloth.model.material.onBeforeCompile = (shader) => {
+    cloth.model.material.onBeforeCompile = (shader) => {
+      cloth.model.userData.uniforms = shader.uniforms;
 
-  cloth.model.userData.uniforms = shader.uniforms;
+      cloth.model.userData.uniforms.uTime = { value: 0 };
+      cloth.model.userData.uniforms.uMouse = { value: cloth.mouse };
+      cloth.model.userData.uniforms.uMouseUV = { value: cloth.mouseUV };
+      cloth.model.userData.uniforms.uOffsetIntensity = {
+        value: cloth.offserIntensity,
+      };
 
-  cloth.model.userData.uniforms.uTime = { value: 0 };
-  cloth.model.userData.uniforms.uMouse = cloth.mouse;
-  cloth.model.userData.uniforms.uMouseUV = cloth.mouseUV;
-  cloth.model.userData.uniforms.uOffsetIntensity = cloth.offserIntensity;
-
-  shader.vertexShader = shader.vertexShader.replace(
-    "#include <common>",
+      shader.vertexShader = shader.vertexShader.replace(
+        "#include <common>",
+        `
+        #include <common>
+        uniform float uTime;
+        uniform float uOffsetIntensity;
+        uniform vec3 uMouse;
+        uniform vec2 uMouseUV;
     `
-    #include <common>
-    uniform float uTime;
+      );
+
+      shader.vertexShader = shader.vertexShader.replace(
+        "#include <displacementmap_vertex>",
+        `
+        #include <displacementmap_vertex>
+
+        vec3 n = normalize(normal);
+
+        // distance between vertex and mouse (same space!)
+        float dist = distance(transformed, vec3(
+        -0.4824066733648658,-0.6615862949003867,1.6230654871337589
+        ));
+
+        dist = distance(uv,uMouseUV);
+        // dist = distance(uv,vec2(.5,.5));
+
+        // radius of influence
+        float radius = .3;
+
+        // smooth falloff
+        float strength = 1.0 - smoothstep(0.0, radius, dist);
+
+        // apply displacement
+        transformed += n * strength * 6.15 * uOffsetIntensity;
     `
-  );
-
-  shader.vertexShader = shader.vertexShader.replace(
-    "#include <displacementmap_vertex>",
-    `
-    #include <displacementmap_vertex>
-
-    vec3 n = normalize(objectNormal);
-    float strength = 10.2;
-
-    transformed += n * abs(sin(uTime)) * strength;
-    `
-  );
-};
-
+      );
+    };
 
     modelsLoaded = true;
     AnimateStoneOut();
@@ -437,7 +454,30 @@ function Animate() {
   PrevTime = CurrentTime;
 
   if (modelsLoaded && cloth?.model?.userData?.uniforms) {
-    cloth.model.userData.uniforms.uTime.value += DT
+    cloth.model.userData.uniforms.uTime.value += DT;
+    cloth.model.userData.uniforms.uMouse.value.x +=
+      (cloth.mouse.x - cloth.model.userData.uniforms.uMouse.value.x) * 0.2;
+    cloth.model.userData.uniforms.uMouse.value.y +=
+      (cloth.mouse.y - cloth.model.userData.uniforms.uMouse.value.y) * 0.2;
+    cloth.model.userData.uniforms.uMouse.value.z +=
+      (cloth.mouse.z - cloth.model.userData.uniforms.uMouse.value.z) * 0.2;
+
+    cloth.model.userData.uniforms.uMouseUV.value.x += (
+      cloth.mouseUV.x - cloth.model.userData.uniforms.uMouseUV.value.x
+    ) * .05
+    cloth.model.userData.uniforms.uMouseUV.value.y += (
+      cloth.mouseUV.y - cloth.model.userData.uniforms.uMouseUV.value.y
+    ) * .05
+
+    if(stone.isMouse) {
+      cloth.model.userData.uniforms.uOffsetIntensity.value += (
+        1 - cloth.model.userData.uniforms.uOffsetIntensity.value
+      ) * .1
+    } else {
+      cloth.model.userData.uniforms.uOffsetIntensity.value -= cloth.model.userData.uniforms.uOffsetIntensity.value* .1
+    }
+
+    cloth.model.userData.uniforms.uOffsetIntensity.value = cloth.offserIntensity
   }
 
   mouse.x += (targetMouse.x - mouse.x) * 0.15;
