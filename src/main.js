@@ -53,7 +53,7 @@ const { width: SceneWidth, height: SceneHeight } = GetSceneBounds(
 
 // Orbit Controls
 
-const controls = new OrbitControls(camera, canvas);
+// const controls = new OrbitControls(camera, canvas);
 
 // Loaders & Managers ??
 const Manager = new THREE.LoadingManager();
@@ -135,8 +135,7 @@ let cloth = {
   model: null,
   mouse: new Vector3(),
   mouseUV: new Vector2(),
-  originalScale: 0,
-  offserIntensity: 0,
+  originalScale: 0
 };
 
 // Stone Model Object
@@ -220,56 +219,83 @@ function loadCloth() {
     cloth.model.scale.setScalar(cloth.originalScale * 0);
     scene.add(cloth.model);
 
-    cloth.model.material.onBeforeCompile = (shader) => {
-      cloth.model.userData.uniforms = shader.uniforms;
+    // cloth.model.material.onBeforeCompile = (shader) => {
+    //   cloth.model.userData.uniforms = shader.uniforms;
 
-      cloth.model.userData.uniforms.uTime = { value: 0 };
-      cloth.model.userData.uniforms.uMouse = { value: cloth.mouse };
-      cloth.model.userData.uniforms.uMouseUV = { value: cloth.mouseUV };
-      cloth.model.userData.uniforms.uOffsetIntensity = {
-        value: cloth.offserIntensity,
-      };
+    //   cloth.model.userData.uniforms.uTime = { value: 0 };
+    //   cloth.model.userData.uniforms.uMouse = { value: cloth.mouse };
+    //   cloth.model.userData.uniforms.uMouseUV = { value: cloth.mouseUV };
+    //   cloth.model.userData.uniforms.uOffsetIntensity = {
+    //     value: cloth.offserIntensity,
+    //   };
 
-      shader.vertexShader = shader.vertexShader.replace(
-        "#include <common>",
-        `
-        #include <common>
-        uniform float uTime;
-        uniform float uOffsetIntensity;
-        uniform vec3 uMouse;
-        uniform vec2 uMouseUV;
-    `
-      );
+    //   shader.vertexShader = shader.vertexShader.replace(
+    //     "#include <common>",
+    //     `
+    //     #include <common>
+    //     uniform float uTime;
+    //     uniform float uOffsetIntensity;
+    //     uniform vec3 uMouse;
+    //     uniform vec2 uMouseUV;
+    //     varying vec3 vTransformed;
+    //     varying float vLen;
+    // `
+    //   );
 
-      shader.vertexShader = shader.vertexShader.replace(
-        "#include <displacementmap_vertex>",
-        `
-        #include <displacementmap_vertex>
+    //   shader.vertexShader = shader.vertexShader.replace(
+    //     "#include <project_vertex>",
+    //     `
+    //     // #include <project_vertex>
+    //     // object-space normal
+    //     vec3 n = normalize(normal);
 
-        vec3 n = normalize(normal);
+    //     vTransformed = transformed;
 
-        // distance between vertex and mouse (same space!)
-        float dist = distance(transformed, vec3(
-        -0.4824066733648658,-0.6615862949003867,1.6230654871337589
-        ));
+    //     // object-space mouse position
+    //     vec3 mouseOS = (inverse(modelMatrix) * vec4(uMouse, 1.0)).xyz;
 
-        dist = distance(uv,uMouseUV);
-        // dist = distance(uv,vec2(.5,.5));
+    //     float radius = 2.0;
 
-        // radius of influence
-        float radius = .3;
+    //     // object-space distance
+    //     float dist = distance(transformed, mouseOS) / radius;
+    //     vLen = dist;
 
-        // smooth falloff
-        float strength = 1.0 - smoothstep(0.0, radius, dist);
+        
+    //     // smooth falloff
+    //     float strength = 1.0 - smoothstep(0.0, radius, dist);
 
-        // apply displacement
-        transformed += n * strength * 6.15 * uOffsetIntensity;
-    `
-      );
-    };
+    //     // push along normal
+    //     transformed += n * strength * 10.0;
+
+
+        
+    //     vec4 mvPosition = modelViewMatrix * vec4(transformed, 1.0);
+    //     vec4 finalPosition = projectionMatrix * mvPosition;
+
+    //     gl_Position = finalPosition;
+    // `
+    //   );
+
+    //   shader.fragmentShader = shader.fragmentShader.replace(
+    //     '#include <common>',
+    //     `
+    //     varying vec3 vTransformed;
+    //     varying float vLen;
+    //     #include <common>
+    //     `
+    //   )
+    //   shader.fragmentShader = shader.fragmentShader.replace(
+    //     '#include <logdepthbuf_fragment>',
+    //     `
+    //     diffuseColor.rgb = vec3(vLen,0.0,0.0);
+    //     #include <logdepthbuf_fragment>
+    //     `
+    //   )
+    //   console.log(shader.fragmentShader);
+    // };
 
     modelsLoaded = true;
-    AnimateStoneOut();
+    AnimateStoneIn();
   });
 }
 
@@ -304,11 +330,8 @@ function AnimateStoneOut() {
   if (!modelsLoaded || isAnimating) return;
   isAnimating = true;
 
-  cloth.offserIntensity = 1;
-
   const tl = gsap.timeline({
-    duration: 0.3,
-    ease: "power2",
+    duration: 0.1,
     onComplete() {
       stone.isStoneActive = false;
       stone.outro.reset().setLoop(THREE.LoopOnce, 1);
@@ -351,8 +374,7 @@ function AnimateStoneOut() {
 }
 function AnimateStoneIn() {
   if (!modelsLoaded || isAnimating) return;
-  isAnimating = true;
-  cloth.offserIntensity = 0;
+  isAnimating = true
 
   gsap.to(cloth.model.scale, {
     x: 0,
@@ -413,7 +435,7 @@ function AnimateStone(DT = 0) {
       // distance from mouse
       const dist = worldPos.distanceTo(mouse3d);
 
-      if (dist > settings.radius.value) {
+      if (dist > settings.radius.value || !stone.isMouse) {
         node.position.lerp(worldPos, settings.lerpAlpha.value);
         return;
       }
@@ -462,22 +484,21 @@ function Animate() {
     cloth.model.userData.uniforms.uMouse.value.z +=
       (cloth.mouse.z - cloth.model.userData.uniforms.uMouse.value.z) * 0.2;
 
-    cloth.model.userData.uniforms.uMouseUV.value.x += (
-      cloth.mouseUV.x - cloth.model.userData.uniforms.uMouseUV.value.x
-    ) * .05
-    cloth.model.userData.uniforms.uMouseUV.value.y += (
-      cloth.mouseUV.y - cloth.model.userData.uniforms.uMouseUV.value.y
-    ) * .05
+    cloth.model.userData.uniforms.uMouseUV.value.x +=
+      (cloth.mouseUV.x - cloth.model.userData.uniforms.uMouseUV.value.x) * 0.05;
+    cloth.model.userData.uniforms.uMouseUV.value.y +=
+      (cloth.mouseUV.y - cloth.model.userData.uniforms.uMouseUV.value.y) * 0.05;
 
-    if(stone.isMouse) {
-      cloth.model.userData.uniforms.uOffsetIntensity.value += (
-        1 - cloth.model.userData.uniforms.uOffsetIntensity.value
-      ) * .1
+    if (stone.isMouse) {
+      cloth.model.userData.uniforms.uOffsetIntensity.value +=
+        (1 - cloth.model.userData.uniforms.uOffsetIntensity.value) * 0.1;
     } else {
-      cloth.model.userData.uniforms.uOffsetIntensity.value -= cloth.model.userData.uniforms.uOffsetIntensity.value* .1
+      cloth.model.userData.uniforms.uOffsetIntensity.value -=
+        cloth.model.userData.uniforms.uOffsetIntensity.value * 0.1;
     }
 
-    cloth.model.userData.uniforms.uOffsetIntensity.value = cloth.offserIntensity
+    cloth.model.userData.uniforms.uOffsetIntensity.value =
+      cloth.offserIntensity;
   }
 
   mouse.x += (targetMouse.x - mouse.x) * 0.15;
